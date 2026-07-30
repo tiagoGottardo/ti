@@ -49,6 +49,17 @@ export PATH="$HOME/.local/bin:$PATH"
 
 For a permanent setup, add that line to your shell profile.
 
+### Nix
+
+You can also install and run it using nix
+
+```bash
+nix run github:tiagoGottardo/ti#ti -- <file-to-edit> # running without installing permanently
+# or
+nix profile add github:tiagoGottardo/ti#ti # install into the nix profile (permanent install)
+ti <file-to-edit> # to run
+```
+
 ## Build
 
 ```sh
