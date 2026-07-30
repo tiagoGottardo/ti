@@ -1,3 +1,4 @@
+use core::fmt;
 use std::cmp::{max, min};
 
 use crate::{
@@ -15,7 +16,7 @@ pub enum Clipboard {
     None,
 }
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum Mode {
     Normal,
     Replace,
@@ -23,6 +24,20 @@ pub enum Mode {
     Copy,
     Insert,
     Visual(Pos),
+}
+
+impl fmt::Display for Mode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mode = match self {
+            Self::Normal | Self::Delete | Self::Copy | Self::Replace => "NORMAL",
+            Self::Insert => "INSERT",
+            Self::Visual(_) => "VISUAL",
+        };
+
+        write!(f, "{mode}")?;
+
+        Ok(())
+    }
 }
 
 impl Mode {
