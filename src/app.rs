@@ -161,9 +161,8 @@ impl App {
             }
             (Normal, Sym('o')) => {
                 undo.push(doc.snapshot(), cursor.clone(), *mode);
-                mode.set(Insert);
-                doc.insert_line(cursor.row + 1);
-                cursor.down(doc);
+                doc.insert(cursor.clone().go_to_end_of_line(doc, Insert).to_pos(), "\n");
+                cursor.down(doc).bound_col(doc, mode.set(Insert));
             }
             (Replace, Sym(ch)) => {
                 undo.push(doc.snapshot(), cursor.clone(), *mode);
@@ -435,7 +434,7 @@ impl App {
             }
             (Insert, Enter) => {
                 doc.insert(cursor.to_pos(), "\n");
-                cursor.down(doc);
+                cursor.down(doc).bound_col(doc, *mode);
             }
             (Insert, Backspace) => {
                 if cursor.row == 0 && cursor.col == 0 {
