@@ -422,7 +422,6 @@ impl App {
                 mode.set(Normal);
             }
             (Copy, Sym('k')) => {
-                undo.push(doc.snapshot(), cursor.clone(), Normal);
                 if cursor.row == 0 {
                     mode.set(Normal);
                     return Ok(true);
