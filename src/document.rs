@@ -119,6 +119,11 @@ impl Document {
         let mut result = String::new();
 
         if start.row == end.row {
+            if self.lines[start.row].len() == 0 {
+                self.lines[start.row].push('\n');
+                return self.lines.remove(start.row);
+            }
+
             if !del_start {
                 result.push_str(
                     &self.lines[start.row]
@@ -145,17 +150,24 @@ impl Document {
             ));
         }
 
-        let rest = if !del_end {
-            Some(self.lines[end.row].drain(..=end.col).collect::<String>())
+        let rest = if del_end {
+            self.lines[end.row].push('\n');
+            self.lines.remove(end.row)
         } else {
-            None
+            self.lines[end.row].drain(..=end.col).collect::<String>()
         };
 
-        for _ in start.row + 1..end.row + if del_end { 1 } else { 0 } {
+        for _ in start.row + 1..end.row {
             result.push_str(&format!("{}\n", self.lines.remove(start.row + 1)));
         }
 
-        rest.map(|rest| result.push_str(&rest));
+        result.push_str(&format!("{rest}"));
+
+        if self.lines[start.row].len() == 0 {
+            self.lines.remove(start.row);
+            result.push('\n');
+            return result;
+        }
 
         if start.row + 1 < self.lines.len() {
             let next_line = self.lines.remove(start.row + 1);
@@ -677,5 +689,54 @@ mod tests {
         let end = Pos { row: 2, col: 4 };
 
         assert_eq!(doc.delete(start, end), "sdf\n".to_owned());
+    }
+
+    #[test]
+    fn it_deletes_last_empty_line() {
+        let mut doc = Document {
+            file_path: "ti.ti".to_owned(),
+            lines: vec![
+                "I".to_owned(),
+                "am".to_owned(),
+                "back".to_owned(),
+                "".to_owned(),
+            ],
+        };
+
+        let start = Pos { row: 3, col: 0 };
+        let end = Pos { row: 3, col: 0 };
+
+        let deleted = doc.delete(start, end);
+
+        assert_eq!(
+            doc.lines,
+            vec!["I".to_owned(), "am".to_owned(), "back".to_owned()]
+        );
+        assert_eq!(deleted, "\n".to_owned());
+    }
+
+    #[test]
+    fn it_deletes_last_two_empty_lines() {
+        let mut doc = Document {
+            file_path: "ti.ti".to_owned(),
+            lines: vec![
+                "I".to_owned(),
+                "am".to_owned(),
+                "back".to_owned(),
+                "".to_owned(),
+                "".to_owned(),
+            ],
+        };
+
+        let start = Pos { row: 3, col: 0 };
+        let end = Pos { row: 4, col: 0 };
+
+        let deleted = doc.delete(start, end);
+
+        assert_eq!(
+            doc.lines,
+            vec!["I".to_owned(), "am".to_owned(), "back".to_owned()]
+        );
+        assert_eq!(deleted, "\n\n".to_owned());
     }
 }
