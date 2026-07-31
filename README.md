@@ -127,17 +127,18 @@ Format the code:
 cargo fmt --all
 ```
 
-## Roadmap
+## Next steps
 
-- [x] Refactor editor internals
-- [x] Implement viewport rendering
-- [x] Implement visual mode
-- [x] Implement line joining in normal and visual modes
-- [x] Support copy, delete, and paste
-- [x] Support Unicode input
-- [x] Implement number column
-- [ ] Solve bug of cant delete the last empty line
-- [x] Solve bug about select, on visual mode, mora than one viewport size content
+- [X] Refactor editor internals
+- [X] Implement viewport rendering
+- [X] Implement visual mode
+- [X] Implement line joining in normal and visual modes
+- [X] Support copy, delete, and paste
+- [X] Support Unicode input
+- [X] Implement number column
+- [X] Solve bug: cant delete the last empty line
+- [X] Solve bug: It doesn't show selection on empty lines
+- [X] Solve bug: It can't select more than one viewport size content
 - [ ] Support Alt + key
 - [ ] Implement content movement with Alt + j/k
 - [ ] Implement colors with themes

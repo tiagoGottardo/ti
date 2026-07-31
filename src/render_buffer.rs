@@ -102,10 +102,35 @@ impl RenderBuffer {
                 };
             }
 
+            if line.len() == 0 {
+                render_buffer.cells
+                    [(row + TOP_SPACE_SIZE) * render_buffer.width + LEFT_SPACE_SIZE]
+                    .highlight = match mode {
+                    Mode::Visual(landmark) => {
+                        let pos = Pos {
+                            row: row + viewport.top_row,
+                            col: 0,
+                        };
+
+                        let start = min(*landmark, cursor.to_pos());
+                        let end = max(*landmark, cursor.to_pos());
+
+                        start <= pos && pos <= end
+                    }
+                    _ => false,
+                };
+            }
+
             for (col, char) in line
                 .chars()
                 .skip(viewport.left_column)
-                .map(|ch| if ch != ' ' { ch } else { '·' })
+                .map(|ch| {
+                    if ch == ' ' && line.len() > 0 {
+                        '·'
+                    } else {
+                        ch
+                    }
+                })
                 .enumerate()
             {
                 let highlight = match mode {
