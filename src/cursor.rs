@@ -7,6 +7,7 @@ use std::cmp::{max, min};
 use crate::{
     app::Mode,
     document::{Document, Pos},
+    render_buffer::{LEFT_SPACE_SIZE, TOP_SPACE_SIZE},
     viewport::Viewport,
 };
 
@@ -30,8 +31,8 @@ impl Cursor {
 
         building.push_str(&format!(
             "\x1b[{};{}H",
-            self.row - viewport.top_row + 1,
-            col - viewport.left_column + 1
+            self.row - viewport.top_row + 1 + TOP_SPACE_SIZE,
+            col - viewport.left_column + 1 + LEFT_SPACE_SIZE
         ));
 
         let mode = match mode {

@@ -38,9 +38,14 @@ impl Document {
             .nth(1)
             .ok_or_else(|| TiError("You need to provide the file path!".to_owned()))?;
 
+        let mut lines = fs::read_to_string(&file_path)?;
+        if let Some('\n') = lines.chars().last() {
+            lines.pop();
+        }
+
         Ok(Self {
-            file_path: file_path.to_owned(),
-            lines: fs::read_to_string(file_path)?
+            file_path: file_path,
+            lines: lines
                 .split("\n")
                 .map(|line| line.to_owned())
                 .collect::<Vec<String>>(),
@@ -48,7 +53,9 @@ impl Document {
     }
 
     pub fn save(&self) -> io::Result<()> {
-        fs::write(&self.file_path, self.lines.join("\n"))
+        let mut lines = self.lines.join("\n");
+        lines.push('\n');
+        fs::write(&self.file_path, lines)
     }
 
     pub fn insert(&mut self, pos: Pos, str: &str) -> Pos {
@@ -170,7 +177,7 @@ impl Document {
     }
 
     pub fn row_bound(&self) -> usize {
-        max(self.lines.len() as isize - 2, 0) as usize
+        max(self.lines.len() as isize - 1, 0) as usize
     }
 
     pub fn next_word(&self, pos: Pos) -> Pos {

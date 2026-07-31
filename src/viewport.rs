@@ -3,7 +3,12 @@ const COL_DISTANCE: usize = 6;
 
 use std::cmp::{max, min};
 
-use crate::{cursor::Cursor, document::Document, terminal::get_terminal_size};
+use crate::{
+    cursor::Cursor,
+    document::Document,
+    render_buffer::{BOTTOM_SPACE_SIZE, LEFT_SPACE_SIZE, TOP_SPACE_SIZE},
+    terminal::get_terminal_size,
+};
 
 pub struct Viewport {
     pub top_row: usize,
@@ -19,8 +24,8 @@ impl Viewport {
         Self {
             top_row: 0,
             left_column: 0,
-            width,
-            height,
+            width: width - LEFT_SPACE_SIZE,
+            height: height - (TOP_SPACE_SIZE + BOTTOM_SPACE_SIZE),
         }
     }
 
@@ -32,7 +37,7 @@ impl Viewport {
         if self.top_row + self.height - ROW_DISTANCE < cursor.row {
             self.top_row = min(
                 cursor.row + ROW_DISTANCE - self.height,
-                doc.lines.len() - self.height - 1,
+                doc.lines.len() - self.height,
             );
         }
 
