@@ -110,13 +110,13 @@ impl RenderBuffer {
             {
                 let highlight = match mode {
                     Mode::Visual(landmark) => {
-                        let pos = Pos { row, col };
+                        let pos = Pos {
+                            row: row + viewport.top_row,
+                            col,
+                        };
 
-                        let mut start = min(*landmark, cursor.to_pos());
-                        let mut end = max(*landmark, cursor.to_pos());
-
-                        start.row -= viewport.top_row;
-                        end.row -= viewport.top_row;
+                        let start = min(*landmark, cursor.to_pos());
+                        let end = max(*landmark, cursor.to_pos());
 
                         start <= pos && pos <= end
                     }
