@@ -139,7 +139,7 @@ cargo fmt --all
 - [X] Solve bug: cant delete the last empty line
 - [X] Solve bug: It doesn't show selection on empty lines
 - [X] Solve bug: It can't select more than one viewport size content
-- [ ] Support Alt + key
+- [X] Support Alt + key
 - [ ] Implement content movement with Alt + j/k
 - [ ] Implement colors with themes
 - [ ] Improve UI (number column, top and bottom bars)

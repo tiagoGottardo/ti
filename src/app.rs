@@ -145,6 +145,82 @@ impl App {
 
                 mode.set(Normal);
             }
+            (Visual(mut landmark), Alt('j')) => {
+                let mut start = min(landmark, cursor.to_pos());
+                let mut end = max(landmark, cursor.to_pos());
+
+                if end.row + 1 > doc.lines.len() {
+                    return Ok(true);
+                }
+
+                undo.push(doc.snapshot(), cursor.clone(), *mode);
+
+                start.col = 0;
+                end.col = doc.col_bound(end.row, Insert);
+
+                let mut deleted = doc.delete(start, end);
+                deleted.pop();
+                doc.insert(
+                    Pos {
+                        row: start.row,
+                        col: doc.col_bound(start.row, Insert),
+                    },
+                    "\n",
+                );
+                start.row += 1;
+                doc.insert(start, &deleted);
+                landmark.row += 1;
+                mode.set(Visual(landmark));
+                cursor.down(doc);
+            }
+            (Visual(mut landmark), Alt('k')) => {
+                let mut start = min(landmark, cursor.to_pos());
+                let mut end = max(landmark, cursor.to_pos());
+
+                if start.row == 0 {
+                    return Ok(true);
+                }
+
+                undo.push(doc.snapshot(), cursor.clone(), *mode);
+
+                start.col = 0;
+                end.col = doc.col_bound(end.row, Insert);
+
+                let deleted = doc.delete(start, end);
+                start.row -= 1;
+                doc.insert(
+                    start, // cursor.up().clone().go_to_start_of_line(doc).to_pos(),
+                    &deleted,
+                );
+                landmark.row -= 1;
+                mode.set(Visual(landmark));
+                cursor.up();
+            }
+            (Normal, Alt('k')) if cursor.row > 0 => {
+                undo.push(doc.snapshot(), cursor.clone(), *mode);
+                let deleted = doc.delete(
+                    cursor.clone().go_to_start_of_line(doc).to_pos(),
+                    cursor.clone().go_to_end_of_line(doc, Insert).to_pos(),
+                );
+                doc.insert(
+                    cursor.up().clone().go_to_start_of_line(doc).to_pos(),
+                    &deleted,
+                );
+            }
+            (Normal, Alt('j')) if cursor.row + 1 < doc.lines.len() => {
+                undo.push(doc.snapshot(), cursor.clone(), *mode);
+                let mut deleted = doc.delete(
+                    cursor.clone().go_to_start_of_line(doc).to_pos(),
+                    cursor.clone().go_to_end_of_line(doc, Insert).to_pos(),
+                );
+                deleted.insert(0, '\n');
+                deleted.pop();
+                doc.insert(
+                    cursor.clone().go_to_end_of_line(doc, Insert).to_pos(),
+                    &deleted,
+                );
+                cursor.down(doc);
+            }
             (Normal, Sym('A')) => {
                 undo.push(doc.snapshot(), cursor.clone(), *mode);
                 cursor.go_to_end_of_line(doc, mode.set(Insert));
@@ -346,7 +422,6 @@ impl App {
                 mode.set(Normal);
             }
             (Copy, Sym('k')) => {
-                undo.push(doc.snapshot(), cursor.clone(), Normal);
                 if cursor.row == 0 {
                     mode.set(Normal);
                     return Ok(true);

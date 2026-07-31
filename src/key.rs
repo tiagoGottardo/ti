@@ -1,10 +1,11 @@
-use std::io::{self, Read, Stdin, stdin};
+use std::io::{self, Read, stdin};
 
 const ESC_BYTE: u8 = 0x1b;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Key {
     Sym(char),
+    Alt(char),
     Enter,
     Backspace,
     Tab,
@@ -34,7 +35,7 @@ pub fn get_key_pressed() -> io::Result<Key> {
     read_plain_key(first, &mut input)
 }
 
-fn read_byte_blocking(input: &mut Stdin) -> io::Result<u8> {
+fn read_byte_blocking(input: &mut impl Read) -> io::Result<u8> {
     let mut byte = [0; 1];
 
     loop {
@@ -45,7 +46,7 @@ fn read_byte_blocking(input: &mut Stdin) -> io::Result<u8> {
     }
 }
 
-fn read_byte_optional(input: &mut Stdin) -> io::Result<Option<u8>> {
+fn read_byte_optional(input: &mut impl Read) -> io::Result<Option<u8>> {
     let mut byte = [0; 1];
 
     match input.read(&mut byte)? {
@@ -54,7 +55,7 @@ fn read_byte_optional(input: &mut Stdin) -> io::Result<Option<u8>> {
     }
 }
 
-fn read_plain_key(first: u8, input: &mut Stdin) -> io::Result<Key> {
+fn read_plain_key(first: u8, input: &mut impl Read) -> io::Result<Key> {
     match first {
         b'\r' | b'\n' => Ok(Key::Enter),
         b'\t' => Ok(Key::Tab),
@@ -64,7 +65,7 @@ fn read_plain_key(first: u8, input: &mut Stdin) -> io::Result<Key> {
     }
 }
 
-fn read_utf8_key(first: u8, input: &mut Stdin) -> io::Result<Key> {
+fn read_utf8_key(first: u8, input: &mut impl Read) -> io::Result<Key> {
     let len = match first {
         0xc2..=0xdf => 2,
         0xe0..=0xef => 3,
@@ -87,7 +88,7 @@ fn read_utf8_key(first: u8, input: &mut Stdin) -> io::Result<Key> {
         .unwrap_or(Key::Unknown))
 }
 
-fn read_escape_sequence(input: &mut Stdin) -> io::Result<Key> {
+fn read_escape_sequence(input: &mut impl Read) -> io::Result<Key> {
     let Some(first) = read_byte_optional(input)? else {
         return Ok(Key::Escape);
     };
@@ -95,11 +96,14 @@ fn read_escape_sequence(input: &mut Stdin) -> io::Result<Key> {
     match first {
         b'[' => read_csi_sequence(input),
         b'O' => read_ss3_sequence(input),
-        _ => Ok(Key::Escape),
+        byte => read_plain_key(byte, input).map(|key| match key {
+            Key::Sym(ch) => Key::Alt(ch),
+            _ => Key::Unknown,
+        }),
     }
 }
 
-fn read_ss3_sequence(input: &mut Stdin) -> io::Result<Key> {
+fn read_ss3_sequence(input: &mut impl Read) -> io::Result<Key> {
     let Some(final_byte) = read_byte_optional(input)? else {
         return Ok(Key::Escape);
     };
@@ -115,7 +119,7 @@ fn read_ss3_sequence(input: &mut Stdin) -> io::Result<Key> {
     })
 }
 
-fn read_csi_sequence(input: &mut Stdin) -> io::Result<Key> {
+fn read_csi_sequence(input: &mut impl Read) -> io::Result<Key> {
     let mut seq = Vec::new();
 
     while let Some(byte) = read_byte_optional(input)? {
@@ -185,5 +189,43 @@ fn scroll_key(button_code: u8) -> Key {
     match button_code & 1 {
         0 => Key::ScrollUp,
         _ => Key::ScrollDown,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+
+    use super::*;
+
+    fn read_key(bytes: &[u8]) -> Key {
+        let mut input = Cursor::new(bytes);
+        let first = read_byte_blocking(&mut input).unwrap();
+
+        if first == ESC_BYTE {
+            read_escape_sequence(&mut input).unwrap()
+        } else {
+            read_plain_key(first, &mut input).unwrap()
+        }
+    }
+
+    #[test]
+    fn it_reads_alt_ascii_key() {
+        assert_eq!(read_key(b"\x1bj"), Key::Alt('j'));
+    }
+
+    #[test]
+    fn it_reads_alt_utf8_key() {
+        assert_eq!(read_key("\x1bé".as_bytes()), Key::Alt('é'));
+    }
+
+    #[test]
+    fn it_ignores_alt_non_symbol_key() {
+        assert_eq!(read_key(b"\x1b[1;3D"), Key::Unknown);
+    }
+
+    #[test]
+    fn it_keeps_plain_escape() {
+        assert_eq!(read_key(b"\x1b"), Key::Escape);
     }
 }

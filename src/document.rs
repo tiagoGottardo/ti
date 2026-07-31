@@ -1,4 +1,4 @@
-use std::cmp::{Ordering, max};
+use std::cmp::{Ordering, max, min};
 use std::{
     env, fs,
     io::{self},
@@ -59,23 +59,28 @@ impl Document {
     }
 
     pub fn insert(&mut self, pos: Pos, str: &str) -> Pos {
-        let mut it = str.split("\n");
+        let parts = str.split("\n").collect::<Vec<_>>();
+        let byte_col = Self::char_to_byte_idx(&self.lines[pos.row], pos.col);
 
-        let rest = self.lines[pos.row].drain(pos.col..).collect::<String>();
+        let rest = self.lines[pos.row].drain(byte_col..).collect::<String>();
 
-        it.next()
-            .map(|s| self.lines[pos.row].insert_str(pos.col, s));
+        self.lines[pos.row].insert_str(byte_col, parts[0]);
 
-        it.enumerate().for_each(|(i, s)| {
-            self.lines.insert(pos.row + i + 1, s.to_owned());
+        parts.iter().skip(1).enumerate().for_each(|(i, s)| {
+            self.lines.insert(pos.row + i + 1, (*s).to_owned());
         });
 
+        let final_row = pos.row + parts.len() - 1;
         let final_pos = Pos {
-            row: pos.row + str.matches("\n").count(),
-            col: self.lines[pos.row + str.matches("\n").count()].len(),
+            row: final_row,
+            col: if parts.len() == 1 {
+                pos.col + Self::char_len(parts[0])
+            } else {
+                Self::char_len(parts.last().unwrap())
+            },
         };
 
-        self.lines[pos.row + str.matches("\n").count()].push_str(&rest);
+        self.lines[final_row].push_str(&rest);
 
         final_pos
     }
@@ -112,69 +117,126 @@ impl Document {
     }
 
     pub fn delete(&mut self, from: Pos, to: Pos) -> String {
-        let (start, end) = if from < to { (from, to) } else { (to, from) };
-        let del_start = start.col == self.lines[start.row].len();
-        let del_end = end.col == self.lines[end.row].len();
+        let start = min(from, to);
+        let end = max(from, to);
 
-        let mut result = String::new();
+        assert!(start.row < self.lines.len());
+        assert!(end.row < self.lines.len());
+        assert!(start.col <= Self::char_len(&self.lines[start.row]));
+        assert!(end.col <= Self::char_len(&self.lines[end.row]));
 
         if start.row == end.row {
-            if self.lines[start.row].len() == 0 {
-                self.lines[start.row].push('\n');
-                return self.lines.remove(start.row);
-            }
-
-            if !del_start {
-                result.push_str(
-                    &self.lines[start.row]
-                        .drain(start.col..end.col + if del_end { 0 } else { 1 })
-                        .collect::<String>(),
-                );
-
-                if del_end {
-                    result.push('\n');
-                }
-            }
-
-            if del_end && start.row + 1 < self.lines.len() {
-                let next_line = self.lines.remove(start.row + 1);
-                self.lines[start.row].push_str(&next_line);
-            }
-            return result;
+            return self.delete_same_line(start, end);
         }
 
-        if !del_start {
-            result.push_str(&format!(
-                "{}\n",
-                self.lines[start.row].drain(start.col..).collect::<String>()
-            ));
+        let mut result = String::new();
+        let start_line_len = Self::char_len(&self.lines[start.row]);
+
+        result.push_str(&Self::char_slice(
+            &self.lines[start.row],
+            start.col,
+            start_line_len,
+        ));
+        result.push('\n');
+
+        for row in start.row + 1..end.row {
+            result.push_str(&self.lines[row]);
+            result.push('\n');
         }
 
-        let rest = if del_end {
-            self.lines[end.row].push('\n');
-            self.lines.remove(end.row)
+        let end_line_len = Self::char_len(&self.lines[end.row]);
+        result.push_str(&Self::char_slice(
+            &self.lines[end.row],
+            0,
+            min(end.col + 1, end_line_len),
+        ));
+
+        let deletes_end_newline = end.col == end_line_len;
+        if deletes_end_newline {
+            result.push('\n');
+        }
+
+        let prefix = Self::char_slice(&self.lines[start.row], 0, start.col);
+        let suffix = if deletes_end_newline {
+            self.lines.get(end.row + 1).cloned().unwrap_or_default()
         } else {
-            self.lines[end.row].drain(..=end.col).collect::<String>()
+            Self::char_slice(&self.lines[end.row], end.col + 1, end_line_len)
+        };
+        let replacement = format!("{prefix}{suffix}");
+        let remove_through = if deletes_end_newline && end.row + 1 < self.lines.len() {
+            end.row + 1
+        } else {
+            end.row
         };
 
-        for _ in start.row + 1..end.row {
-            result.push_str(&format!("{}\n", self.lines.remove(start.row + 1)));
+        if replacement.is_empty()
+            && deletes_end_newline
+            && end.row + 1 == self.lines.len()
+            && start.col == 0
+            && start.row > 0
+        {
+            self.lines.drain(start.row..=remove_through);
+        } else {
+            self.lines[start.row] = replacement;
+            self.lines.drain(start.row + 1..=remove_through);
         }
 
-        result.push_str(&format!("{rest}"));
-
-        if self.lines[start.row].len() == 0 {
-            self.lines.remove(start.row);
-            result.push('\n');
-            return result;
-        }
-
-        if start.row + 1 < self.lines.len() {
-            let next_line = self.lines.remove(start.row + 1);
-            self.lines[start.row].push_str(&next_line);
+        if self.lines.is_empty() {
+            self.lines.push(String::new());
         }
 
         result
+    }
+
+    fn delete_same_line(&mut self, start: Pos, end: Pos) -> String {
+        let line_len = Self::char_len(&self.lines[start.row]);
+        let deletes_newline = end.col == line_len;
+        let mut result = Self::char_slice(
+            &self.lines[start.row],
+            start.col,
+            min(end.col + 1, line_len),
+        );
+
+        if deletes_newline {
+            result.push('\n');
+        }
+
+        let prefix = Self::char_slice(&self.lines[start.row], 0, start.col);
+
+        if deletes_newline {
+            if start.row + 1 < self.lines.len() {
+                let next_line = self.lines.remove(start.row + 1);
+                self.lines[start.row] = format!("{prefix}{next_line}");
+            } else if prefix.is_empty() && start.row > 0 {
+                self.lines.remove(start.row);
+            } else {
+                self.lines[start.row] = prefix;
+            }
+        } else {
+            let suffix = Self::char_slice(&self.lines[start.row], end.col + 1, line_len);
+            self.lines[start.row] = format!("{prefix}{suffix}");
+        }
+
+        if self.lines.is_empty() {
+            self.lines.push(String::new());
+        }
+
+        result
+    }
+
+    fn char_len(line: &str) -> usize {
+        line.chars().count()
+    }
+
+    fn char_slice(line: &str, start: usize, end: usize) -> String {
+        line.chars().skip(start).take(end - start).collect()
+    }
+
+    fn char_to_byte_idx(line: &str, col: usize) -> usize {
+        line.char_indices()
+            .map(|(idx, _)| idx)
+            .nth(col)
+            .unwrap_or(line.len())
     }
 
     pub fn insert_line(&mut self, row: usize) {
@@ -182,9 +244,11 @@ impl Document {
     }
 
     pub fn col_bound(&self, row: usize, mode: Mode) -> usize {
+        let line_len = Self::char_len(&self.lines[row]);
+
         match mode {
-            Mode::Insert | Mode::Visual(_) => self.lines[row].len(),
-            _ => max(self.lines[row].len() as isize - 1, 0) as usize,
+            Mode::Insert | Mode::Visual(_) => line_len,
+            _ => max(line_len as isize - 1, 0) as usize,
         }
     }
 
@@ -491,6 +555,19 @@ mod tests {
     }
 
     #[test]
+    fn it_insert_inline_utf8_content() {
+        let mut doc = Document {
+            file_path: "ti.ti".to_owned(),
+            lines: vec!["açb".to_owned()],
+        };
+
+        let pos = doc.insert(Pos { row: 0, col: 2 }, "é");
+
+        assert_eq!(doc.lines, vec!["açéb".to_owned()]);
+        assert_eq!(pos, Pos { row: 0, col: 3 })
+    }
+
+    #[test]
     fn it_insert_multiple_line_content() {
         let mut doc = Document {
             file_path: "ti.ti".to_owned(),
@@ -671,6 +748,20 @@ mod tests {
         let end = Pos { row: 2, col: 2 };
 
         assert_eq!(doc.delete(start, end), "sd".to_owned());
+    }
+
+    #[test]
+    fn it_deletes_utf8_content_by_character_column() {
+        let mut doc = Document {
+            file_path: "ti.ti".to_owned(),
+            lines: vec!["açéb".to_owned()],
+        };
+
+        let start = Pos { row: 0, col: 1 };
+        let end = Pos { row: 0, col: 2 };
+
+        assert_eq!(doc.delete(start, end), "çé".to_owned());
+        assert_eq!(doc.lines, vec!["ab".to_owned()]);
     }
 
     #[test]
