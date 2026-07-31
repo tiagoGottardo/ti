@@ -145,6 +145,31 @@ impl App {
 
                 mode.set(Normal);
             }
+            (Normal, Alt('k')) if cursor.row > 0 => {
+                undo.push(doc.snapshot(), cursor.clone(), *mode);
+                let deleted = doc.delete(
+                    cursor.clone().go_to_start_of_line(doc).to_pos(),
+                    cursor.clone().go_to_end_of_line(doc, Insert).to_pos(),
+                );
+                doc.insert(
+                    cursor.up().clone().go_to_start_of_line(doc).to_pos(),
+                    &deleted,
+                );
+            }
+            (Normal, Alt('j')) if cursor.row + 1 < doc.lines.len() => {
+                undo.push(doc.snapshot(), cursor.clone(), *mode);
+                let mut deleted = doc.delete(
+                    cursor.clone().go_to_start_of_line(doc).to_pos(),
+                    cursor.clone().go_to_end_of_line(doc, Insert).to_pos(),
+                );
+                deleted.insert(0, '\n');
+                deleted.pop();
+                doc.insert(
+                    cursor.clone().go_to_end_of_line(doc, Insert).to_pos(),
+                    &deleted,
+                );
+                cursor.down(doc);
+            }
             (Normal, Sym('A')) => {
                 undo.push(doc.snapshot(), cursor.clone(), *mode);
                 cursor.go_to_end_of_line(doc, mode.set(Insert));
