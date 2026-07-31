@@ -135,7 +135,13 @@ cargo fmt --all
 - [x] Implement line joining in normal and visual modes
 - [x] Support copy, delete, and paste
 - [x] Support Unicode input
-- [ ] Implement number column
-- [ ] Finish viewport scrolling
+- [x] Implement number column
+- [ ] Solve bug of cant delete the last empty line
+- [x] Solve bug about select, on visual mode, mora than one viewport size content
+- [ ] Support Alt + key
+- [ ] Implement content movement with Alt + j/k
+- [ ] Implement colors with themes
+- [ ] Improve UI (number column, top and bottom bars)
+- [ ] Implement number commands
 - [ ] Handle terminal window resize
 - [ ] Stream large files instead of reading the whole document at once
