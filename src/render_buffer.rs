@@ -41,11 +41,12 @@ impl RenderBuffer {
     ) -> Self {
         let mut render_buffer = Self::new();
 
-        let file_name = if let Some((_, right)) = doc.file_path.rsplit_once('/') {
+        let mut file_name = if let Some((_, right)) = doc.file_path.rsplit_once('/') {
             right.to_owned()
         } else {
             doc.file_path.clone()
         };
+        file_name.insert(0, ' ');
 
         for i in 0..render_buffer.width {
             let char = file_name.chars().nth(i).unwrap_or(' ');
@@ -157,20 +158,26 @@ impl RenderBuffer {
             }
         }
 
-        let bottom_bar_str = format!(
-            "{} | {} | {}:{}",
-            mode,
-            doc.file_path,
-            cursor.row + 1,
-            cursor.col + 1
-        );
+        let bottom_bar_str = format!(" {} | {}", mode, doc.file_path,);
+
+        let cursor_pos_str = format!("{}:{} ", cursor.row + 1, cursor.col + 1);
 
         let bottom_bar_row = viewport.height + TOP_SPACE_SIZE;
-        let file_name_start = format!("{} | ", mode).chars().count();
+        let file_name_start = format!(" {} | ", mode).chars().count();
         let file_name_end = file_name_start + doc.file_path.chars().count();
 
         for i in 0..render_buffer.width {
-            let char = bottom_bar_str.chars().nth(i).unwrap_or(' ');
+            let char = if let Some(ch) = bottom_bar_str.chars().nth(i) {
+                ch
+            } else if i >= render_buffer.width - cursor_pos_str.chars().count() {
+                cursor_pos_str
+                    .chars()
+                    .nth(i - (render_buffer.width - cursor_pos_str.chars().count()))
+                    .unwrap_or(' ')
+            } else {
+                ' '
+            };
+
             let mut cell = bar_cell(char);
 
             if (file_name_start..file_name_end).contains(&i) {
