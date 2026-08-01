@@ -41,6 +41,12 @@ The script builds a release binary and installs it to:
 ~/.local/bin/ti
 ```
 
+It also creates the default color configuration when it does not already exist:
+
+```sh
+~/.config/ti/colors.toml
+```
+
 Make sure `~/.local/bin` is in your `PATH`:
 
 ```sh
@@ -59,6 +65,45 @@ nix run github:tiagoGottardo/ti#ti -- <file-to-edit> # running without installin
 nix profile add github:tiagoGottardo/ti#ti # install into the nix profile (permanent install)
 ti <file-to-edit> # to run
 ```
+
+## Colors
+
+Ti loads colors from:
+
+```sh
+~/.config/ti/colors.toml
+```
+
+If `XDG_CONFIG_HOME` is set, Ti uses:
+
+```sh
+$XDG_CONFIG_HOME/ti/colors.toml
+```
+
+Create or refresh the default color file by running the installer:
+
+```sh
+./install.sh
+```
+
+Edit the color file with Ti:
+
+```sh
+ti ~/.config/ti/colors.toml
+```
+
+Reset the color file to the latest defaults:
+
+```sh
+rm ~/.config/ti/colors.toml
+./install.sh
+```
+
+Supported values are `"#RRGGBB"`, `"default"`, and `"NONE"`. Supported keys are
+`accent`, `cursor`, `foreground`, `background`, `selection_foreground`,
+`selection_background`, `current_line`, `current_line_number`,
+`bar_foreground`, `bar_background`, `file_name`, `whitespace`, and `color0`
+through `color15`.
 
 ## Build
 
@@ -129,21 +174,8 @@ cargo fmt --all
 
 ## Next steps
 
-- [X] Refactor editor internals
-- [X] Implement viewport rendering
-- [X] Implement visual mode
-- [X] Implement line joining in normal and visual modes
-- [X] Support copy, delete, and paste
-- [X] Support Unicode input
-- [X] Implement number column
-- [X] Solve bug: cant delete the last empty line
-- [X] Solve bug: It doesn't show selection on empty lines
-- [X] Solve bug: It can't select more than one viewport size content
-- [X] Support Alt + key
-- [X] Implement content movement with Alt + j/k
-- [X] Implement colors with themes
-- [ ] Improve UI (number column, top and bottom bars)
-- [ ] Implement number commands
-
-- [ ] Handle terminal window resize
-- [ ] Stream large files instead of reading the whole document at once
+- Implement number commands
+- Handle terminal window resize
+- Stream large files instead of reading the whole document at once
+- Add LSP support
+- Integrate Lua
