@@ -1,4 +1,5 @@
 pub mod app;
+pub mod cell;
 pub mod cursor;
 pub mod document;
 pub mod error;

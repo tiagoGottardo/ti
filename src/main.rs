@@ -1,5 +1,5 @@
 use std::{panic, process::Command};
-use ti::{app::*, key::get_key_pressed, render_buffer::RenderBuffer, *};
+use ti::{app::*, cell::get_theme, key::get_key_pressed, render_buffer::RenderBuffer, *};
 
 fn main() -> anyhow::Result<()> {
     let mut app = App::new()?;
@@ -30,6 +30,8 @@ fn main() -> anyhow::Result<()> {
         .status()?;
     print!("{ENABLE_MOUSE}{CLEAR_SCREEN}");
 
+    let theme = get_theme()?;
+
     let mut front_buffer = RenderBuffer::new();
     let mut back_buffer = RenderBuffer::from(&app);
 
@@ -41,7 +43,7 @@ fn main() -> anyhow::Result<()> {
 
         prin!(
             "{}{}",
-            RenderBuffer::patch(diff),
+            RenderBuffer::patch(diff, &theme),
             app.cursor.build(&app.doc, &app.viewport, app.mode)
         );
 

@@ -140,9 +140,10 @@ cargo fmt --all
 - [X] Solve bug: It doesn't show selection on empty lines
 - [X] Solve bug: It can't select more than one viewport size content
 - [X] Support Alt + key
-- [ ] Implement content movement with Alt + j/k
-- [ ] Implement colors with themes
+- [X] Implement content movement with Alt + j/k
+- [X] Implement colors with themes
 - [ ] Improve UI (number column, top and bottom bars)
 - [ ] Implement number commands
+
 - [ ] Handle terminal window resize
 - [ ] Stream large files instead of reading the whole document at once

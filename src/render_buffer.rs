@@ -7,24 +7,10 @@ pub const BOTTOM_SPACE_SIZE: usize = 1;
 use crate::{
     HIDE_CURSOR, SHOW_CURSOR,
     app::{App, Mode},
+    cell::{Cell, Color, Theme},
     document::Pos,
     terminal::get_terminal_size,
 };
-
-#[derive(Clone, PartialEq, Copy, Debug)]
-pub struct Cell {
-    pub char: char,
-    pub highlight: bool,
-}
-
-impl Cell {
-    pub fn new(char: char) -> Self {
-        Self {
-            char,
-            highlight: false,
-        }
-    }
-}
 
 #[derive(Clone)]
 pub struct RenderBuffer {
@@ -40,13 +26,7 @@ impl RenderBuffer {
         Self {
             width,
             height,
-            cells: vec![
-                Cell {
-                    char: ' ',
-                    highlight: false
-                };
-                width * height
-            ],
+            cells: vec![Cell::default(); width * height],
         }
     }
 
@@ -67,16 +47,17 @@ impl RenderBuffer {
             doc.file_path.clone()
         };
 
-        render_buffer.cells[0].highlight = true;
-        for i in 1..render_buffer.width {
-            render_buffer.cells[i] = Cell {
-                char: if let Some(char) = file_name.chars().nth(i - 1) {
-                    char
-                } else {
-                    ' '
-                },
-                highlight: true,
-            };
+        for i in 0..render_buffer.width {
+            let char = file_name.chars().nth(i).unwrap_or(' ');
+            let mut cell = bar_cell(char);
+
+            if i < file_name.chars().count() {
+                cell.fg = Color::FileName;
+                cell.bold = true;
+                cell.italic = true;
+            }
+
+            render_buffer.cells[i] = cell;
         }
 
         for (row, line) in doc
@@ -86,42 +67,57 @@ impl RenderBuffer {
             .take(viewport.height)
             .enumerate()
         {
+            let screen_row = row + TOP_SPACE_SIZE;
+            let line_row = row + viewport.top_row;
+            let current_line = line_row == cursor.row;
+
+            if current_line {
+                for col in 0..render_buffer.width {
+                    render_buffer.cells[screen_row * render_buffer.width + col].bg =
+                        Color::CurrentLine;
+                }
+            }
+
             let num = min(
                 9999,
-                if row + viewport.top_row == cursor.row {
-                    row + viewport.top_row + 1
+                if current_line {
+                    line_row + 1
                 } else {
-                    (row + viewport.top_row).abs_diff(cursor.row)
+                    line_row.abs_diff(cursor.row)
                 },
             );
 
             for (i, char) in format!("{:>4}", num).chars().enumerate() {
-                render_buffer.cells[(row + TOP_SPACE_SIZE) * render_buffer.width + i] = Cell {
-                    char,
-                    highlight: false,
-                };
+                let mut cell = Cell::new(char);
+
+                if current_line {
+                    cell.fg = Color::CurrentLineNumber;
+                    cell.bg = Color::CurrentLine;
+                    cell.bold = true;
+                }
+
+                render_buffer.cells[screen_row * render_buffer.width + i] = cell;
             }
 
             if line.len() == 0 {
-                render_buffer.cells
-                    [(row + TOP_SPACE_SIZE) * render_buffer.width + LEFT_SPACE_SIZE]
-                    .highlight = match mode {
-                    Mode::Visual(landmark) => {
-                        let pos = Pos {
-                            row: row + viewport.top_row,
-                            col: 0,
-                        };
+                if let Mode::Visual(landmark) = mode {
+                    let pos = Pos {
+                        row: row + viewport.top_row,
+                        col: 0,
+                    };
 
-                        let start = min(*landmark, cursor.to_pos());
-                        let end = max(*landmark, cursor.to_pos());
+                    let start = min(*landmark, cursor.to_pos());
+                    let end = max(*landmark, cursor.to_pos());
 
-                        start <= pos && pos <= end
+                    if is_visual_selected(pos, start, end) {
+                        render_buffer.cells
+                            [(row + TOP_SPACE_SIZE) * render_buffer.width + LEFT_SPACE_SIZE]
+                            .selected();
                     }
-                    _ => false,
-                };
+                }
             }
 
-            for (col, char) in line
+            for (i, char) in line
                 .chars()
                 .skip(viewport.left_column)
                 .map(|ch| {
@@ -133,24 +129,31 @@ impl RenderBuffer {
                 })
                 .enumerate()
             {
-                let highlight = match mode {
-                    Mode::Visual(landmark) => {
-                        let pos = Pos {
-                            row: row + viewport.top_row,
-                            col,
-                        };
+                let mut cell = Cell::new(char);
 
-                        let start = min(*landmark, cursor.to_pos());
-                        let end = max(*landmark, cursor.to_pos());
+                if char == '·' {
+                    cell.fg = Color::Whitespace;
+                }
 
-                        start <= pos && pos <= end
+                if current_line {
+                    cell.bg = Color::CurrentLine;
+                }
+
+                if let Mode::Visual(landmark) = mode {
+                    let pos = Pos {
+                        row: line_row,
+                        col: i + viewport.left_column,
+                    };
+
+                    let start = min(*landmark, cursor.to_pos());
+                    let end = max(*landmark, cursor.to_pos());
+
+                    if is_visual_selected(pos, start, end) {
+                        cell.selected();
                     }
-                    _ => false,
-                };
+                }
 
-                render_buffer.cells
-                    [(row + TOP_SPACE_SIZE) * render_buffer.width + (col + LEFT_SPACE_SIZE)] =
-                    Cell { char, highlight };
+                render_buffer.cells[screen_row * render_buffer.width + LEFT_SPACE_SIZE + i] = cell;
             }
         }
 
@@ -162,18 +165,21 @@ impl RenderBuffer {
             cursor.col + 1
         );
 
-        render_buffer.cells[(viewport.height + TOP_SPACE_SIZE) * render_buffer.width].highlight =
-            true;
-        for i in 1..render_buffer.width {
-            render_buffer.cells[(viewport.height + TOP_SPACE_SIZE) * render_buffer.width + i] =
-                Cell {
-                    char: if let Some(char) = bottom_bar_str.chars().nth(i - 1) {
-                        char
-                    } else {
-                        ' '
-                    },
-                    highlight: true,
-                };
+        let bottom_bar_row = viewport.height + TOP_SPACE_SIZE;
+        let file_name_start = format!("{} | ", mode).chars().count();
+        let file_name_end = file_name_start + doc.file_path.chars().count();
+
+        for i in 0..render_buffer.width {
+            let char = bottom_bar_str.chars().nth(i).unwrap_or(' ');
+            let mut cell = bar_cell(char);
+
+            if (file_name_start..file_name_end).contains(&i) {
+                cell.fg = Color::FileName;
+                cell.bold = true;
+                cell.italic = true;
+            }
+
+            render_buffer.cells[bottom_bar_row * render_buffer.width + i] = cell;
         }
 
         render_buffer
@@ -193,27 +199,54 @@ impl RenderBuffer {
         diff
     }
 
-    pub fn patch(diff: Vec<(Pos, Cell)>) -> String {
+    pub fn patch(diff: Vec<(Pos, Cell)>, theme: &Theme) -> String {
         let mut render = String::new();
 
         render.push_str(HIDE_CURSOR);
 
         for (pos, cell) in diff {
-            let gray = if cell.char == '·' { "90" } else { "0" };
-            let highlighted = if cell.highlight { ";40" } else { "" };
-
-            render.push_str(&format!(
-                "\x1b[{};{}H\x1b[{}{}m{}\x1b[0m",
-                pos.row + 1,
-                pos.col + 1,
-                gray,
-                highlighted,
-                cell.char,
+            render.push_str(&cell.build(
+                Pos {
+                    row: pos.row + 1,
+                    col: pos.col + 1,
+                },
+                &theme,
             ));
         }
 
         render.push_str(SHOW_CURSOR);
 
         render
+    }
+}
+
+fn bar_cell(char: char) -> Cell {
+    Cell {
+        char,
+        fg: Color::BarForeground,
+        bg: Color::BarBackground,
+        bold: true,
+        italic: false,
+    }
+}
+
+fn is_visual_selected(pos: Pos, start: Pos, end: Pos) -> bool {
+    start <= pos && pos <= end
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_visual_selected;
+    use crate::document::Pos;
+
+    #[test]
+    fn visual_selection_uses_columns_on_single_line() {
+        let start = Pos { row: 3, col: 4 };
+        let end = Pos { row: 3, col: 8 };
+
+        assert!(!is_visual_selected(Pos { row: 3, col: 3 }, start, end));
+        assert!(is_visual_selected(Pos { row: 3, col: 4 }, start, end));
+        assert!(is_visual_selected(Pos { row: 3, col: 8 }, start, end));
+        assert!(!is_visual_selected(Pos { row: 3, col: 9 }, start, end));
     }
 }
