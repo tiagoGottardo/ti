@@ -40,6 +40,77 @@ impl fmt::Display for Mode {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::key::Key;
+
+    fn app_with_lines(lines: &[&str]) -> App {
+        App {
+            doc: Document {
+                file_path: "test.ti".to_owned(),
+                lines: lines.iter().map(|line| (*line).to_owned()).collect(),
+            },
+            viewport: Viewport {
+                top_row: 0,
+                left_column: 0,
+                width: 80,
+                height: 24,
+            },
+            cursor: Cursor::new(),
+            mode: Mode::Normal,
+            undo: UndoStack::new(),
+            clipboard: Clipboard::None,
+            command_count: None,
+        }
+    }
+
+    #[test]
+    fn count_repeats_normal_mode_hjkl_navigation() {
+        let mut app = app_with_lines(&["abcdef", "ghijkl", "mnopqr", "stuvwx"]);
+
+        app.handle_input(Key::Sym('3')).unwrap();
+        app.handle_input(Key::Sym('j')).unwrap();
+        assert_eq!(app.cursor.row, 3);
+
+        app.handle_input(Key::Sym('4')).unwrap();
+        app.handle_input(Key::Sym('l')).unwrap();
+        assert_eq!(app.cursor.col, 4);
+
+        app.handle_input(Key::Sym('2')).unwrap();
+        app.handle_input(Key::Sym('k')).unwrap();
+        assert_eq!(app.cursor.row, 1);
+
+        app.handle_input(Key::Sym('1')).unwrap();
+        app.handle_input(Key::Sym('0')).unwrap();
+        app.handle_input(Key::Sym('h')).unwrap();
+        assert_eq!(app.cursor.col, 0);
+    }
+
+    #[test]
+    fn count_repeats_visual_mode_hjkl_navigation() {
+        let mut app = app_with_lines(&["abc", "def", "ghi"]);
+
+        app.handle_input(Key::Sym('v')).unwrap();
+        app.handle_input(Key::Sym('2')).unwrap();
+        app.handle_input(Key::Sym('j')).unwrap();
+
+        assert_eq!(app.cursor.row, 2);
+        assert_eq!(app.mode, Mode::Visual(Pos { row: 0, col: 0 }));
+    }
+
+    #[test]
+    fn insert_mode_digits_are_inserted() {
+        let mut app = app_with_lines(&["abc"]);
+
+        app.handle_input(Key::Sym('i')).unwrap();
+        app.handle_input(Key::Sym('2')).unwrap();
+
+        assert_eq!(app.doc.lines, vec!["2abc".to_owned()]);
+        assert_eq!(app.cursor.col, 1);
+    }
+}
+
 impl Mode {
     pub fn set(&mut self, mode: Mode) -> Mode {
         *self = mode;
@@ -54,6 +125,7 @@ pub struct App {
     pub mode: Mode,
     pub undo: UndoStack,
     pub clipboard: Clipboard,
+    command_count: Option<usize>,
 }
 
 impl App {
@@ -65,12 +137,30 @@ impl App {
             mode: Mode::Normal,
             undo: UndoStack::new(),
             clipboard: Clipboard::None,
+            command_count: None,
         })
     }
 
     pub fn handle_input(&mut self, key: Key) -> anyhow::Result<bool> {
         use Key::*;
         use Mode::*;
+
+        if matches!(self.mode, Normal | Visual(_)) {
+            if let Sym(ch) = key {
+                if ch.is_ascii_digit() && (ch != '0' || self.command_count.is_some()) {
+                    let digit = ch.to_digit(10).unwrap() as usize;
+                    self.command_count = Some(
+                        self.command_count
+                            .unwrap_or(0)
+                            .saturating_mul(10)
+                            .saturating_add(digit),
+                    );
+                    return Ok(true);
+                }
+            }
+        }
+
+        let command_count = self.command_count.take().unwrap_or(1);
 
         let App {
             cursor,
@@ -85,16 +175,24 @@ impl App {
             (Normal | Visual(_), Sym('Q')) => return Ok(false),
             (Normal | Visual(_), Sym('W')) => doc.save()?,
             (Normal | Visual(_), Sym('h')) => {
-                cursor.bound_col(doc, *mode).left();
+                for _ in 0..command_count {
+                    cursor.bound_col(doc, *mode).left();
+                }
             }
             (Normal | Visual(_), Sym('j') | ArrowDown) => {
-                cursor.down(doc);
+                for _ in 0..command_count {
+                    cursor.down(doc);
+                }
             }
             (Normal | Visual(_), Sym('k') | ArrowUp) => {
-                cursor.up();
+                for _ in 0..command_count {
+                    cursor.up();
+                }
             }
             (Normal | Visual(_), Sym('l') | ArrowRight) => {
-                cursor.right(doc, *mode);
+                for _ in 0..command_count {
+                    cursor.right(doc, *mode);
+                }
             }
             (Normal, Sym('i')) => {
                 undo.push(doc.snapshot(), cursor.clone(), *mode);

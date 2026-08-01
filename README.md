@@ -132,6 +132,7 @@ Common keys:
 | Key | Action |
 | --- | --- |
 | `h` / `j` / `k` / `l` | Move left, down, up, right |
+| Number + `h` / `j` / `k` / `l` | Move multiple times, like `5j` |
 | Arrow keys | Move vertically or right |
 | `w` / `b` / `e` | Move by word |
 | `gg` | Go to first line |
@@ -174,7 +175,6 @@ cargo fmt --all
 
 ## Next steps
 
-- Implement number commands
 - Handle terminal window resize
 - Stream large files instead of reading the whole document at once
 - Add LSP support
