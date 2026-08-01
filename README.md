@@ -5,17 +5,7 @@ already supports the core editing loop: normal mode, insert mode, visual
 selection, movement, saving, quitting, undo, and basic yank/delete/paste
 operations.
 
-## Status
-
-This project is experimental. It is useful for learning and hacking on a
-minimal editor, but it is not intended to replace a production editor yet.
-
-Current limitations:
-
-- Linux/Unix-like terminal support is the practical target.
-- Files are read into memory instead of streamed.
-- Window resize handling is not complete.
-- Viewport scrolling is still incomplete.
+(Demo)[./assets/demo.gif]
 
 ## Requirements
 
