@@ -5,7 +5,7 @@ already supports the core editing loop: normal mode, insert mode, visual
 selection, movement, saving, quitting, undo, and basic yank/delete/paste
 operations.
 
-(Demo)[./assets/demo.gif]
+![Demo](./assets/demo.gif)
 
 ## Requirements
 
